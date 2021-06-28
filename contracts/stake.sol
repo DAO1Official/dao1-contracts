@@ -19,9 +19,8 @@ contract DAO1FarmingUniswap is Ownable {
     // deposit token contract address and reward token contract address
     // these contracts are "trusted" and checked to not contain re-entrancy pattern 
     // to safely avoid checks-effects-interactions where needed to simplify logic
-     address public trustedDepositTokenAddress = 0xF94556124786E08171d278a75cf1b46eE9592227;
+    address public trustedDepositTokenAddress = 0xF94556124786E08171d278a75cf1b46eE9592227;
     address public trustedRewardTokenAddress = 0xCE3f6f6672616c39D8B6858F8DAC9902eCa42C84; 
-    uint public constant LOCKUP_TIME = 3 days;
     
     uint public constant STAKING_FEE_RATE_X_100 = 50;
     uint public constant UNSTAKING_FEE_RATE_X_100 = 50;
@@ -101,7 +100,7 @@ contract DAO1FarmingUniswap is Ownable {
     
     function getPendingDivs(address _holder) public view returns (uint) {
         if (!holders.contains(_holder)) return 0;
-        if (depositedTokens[_holder] == 0) return 0;
+        if (getPositions(_holder).length == 0) return 0;
         
         uint newDivPoints = totalDivPoints.sub(lastDivPoints[_holder]);
 
@@ -142,7 +141,7 @@ contract DAO1FarmingUniswap is Ownable {
     }
     
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
-        require(block.timestamp.add(LOCKUP_TIME) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
+        require(block.timestamp.add(period) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
         
         updateAccount(msg.sender);
