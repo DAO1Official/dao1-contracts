@@ -55,12 +55,19 @@ contract DAO1FarmingUniswap is Ownable {
         lastDisburseTime = contractDeployTime;
     }
     
+    struct Position {
+        uint256 depositTime;
+        uint256 period;
+        uint256 amount;
+        uint256 positionId;
+        bool status;
+    }
+
     uint public totalClaimedRewards = 0;
     
     EnumerableSet.AddressSet private holders;
     
-    mapping (address => uint) public depositedTokens;
-    mapping (address => uint) public depositTime;
+    mapping (address => Position[]) depositedTokens;
     mapping (address => uint) public lastClaimedTime;
     mapping (address => uint) public totalEarnedTokens;
     mapping (address => uint) public lastDivPoints;
@@ -123,9 +130,19 @@ contract DAO1FarmingUniswap is Ownable {
     function getNumberOfHolders() public view returns (uint) {
         return holders.length();
     }
+
+    function getPositions(address holder) public view returns (Position[] memory) {
+        Position[] memory TruePosition;
+         for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
+            if (depositedTokens[holder][i].status==true){
+                TruePosition[i]=depositedTokens[holder][i]
+            }
+        }
+        return TruePosition;
+    }
     
     
-    function deposit(uint amountToDeposit) external noContractsAllowed {
+    function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
         require(block.timestamp.add(LOCKUP_TIME) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
         
@@ -137,30 +154,28 @@ contract DAO1FarmingUniswap is Ownable {
         uint amountAfterFee = amountToDeposit.sub(fee);
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
-        
-        depositedTokens[msg.sender] = depositedTokens[msg.sender].add(amountAfterFee);
+        id=depositedTokens[msg.sender].length;
+        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,id,true));
         totalTokens = totalTokens.add(amountAfterFee);
-
         holders.add(msg.sender);
-        depositTime[msg.sender] = block.timestamp;
     }
     
-    function withdraw(uint amountToWithdraw) external noContractsAllowed {
-        require(amountToWithdraw > 0, "Cannot withdraw 0 Tokens!");
-        require(block.timestamp.sub(depositTime[msg.sender]) > LOCKUP_TIME, "You recently staked, please wait before withdrawing.");
-        require(depositedTokens[msg.sender] >= amountToWithdraw, "Invalid amount to withdraw");
+    function withdraw(uint positionId) external noContractsAllowed {
+        require(positionId<=depositedTokens[msg.sender].length.sub(1));
+        withdraw_position=depositedTokens[msg.sender][positionId];
+        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period days, "You recently staked, please wait before withdrawing.");
         
         updateAccount(msg.sender);
         
-        uint fee = amountToWithdraw.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
-        uint amountAfterFee = amountToWithdraw.sub(fee);
+        uint fee = withdraw_position.amount.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
+        uint amountAfterFee = withdraw_position.amount.sub(fee);
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
         
         require(IERC20(trustedDepositTokenAddress).transfer(msg.sender, amountAfterFee), "Could not transfer tokens.");
         
-        depositedTokens[msg.sender] = depositedTokens[msg.sender].sub(amountToWithdraw);
-        totalTokens = totalTokens.sub(amountToWithdraw);
+        withdraw_position.status = false;
+        totalTokens = totalTokens.sub(withdraw_position.amount);
         
         if (holders.contains(msg.sender) && depositedTokens[msg.sender] == 0) {
             holders.remove(msg.sender);
