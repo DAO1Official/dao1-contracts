@@ -134,14 +134,14 @@ contract DAO1FarmingUniswap is Ownable {
         Position[] memory ValidPosition;
          for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
             if (depositedTokens[holder][i].status==true){
-                ValidPosition[i]=depositedTokens[holder][i]
+                ValidPosition[i]=depositedTokens[holder][i];
             }
         }
         return ValidPosition;
     }
     
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
-        require(block.timestamp.add(period) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
+        require(block.timestamp.add(period* 1 days) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
         
         updateAccount(msg.sender);
@@ -152,16 +152,15 @@ contract DAO1FarmingUniswap is Ownable {
         uint amountAfterFee = amountToDeposit.sub(fee);
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
-        id=depositedTokens[msg.sender].length;
-        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,id,true));
+        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,depositedTokens[msg.sender].length,true));
         totalTokens = totalTokens.add(amountAfterFee);
         holders.add(msg.sender);
     }
     
     function withdraw(uint positionId) external noContractsAllowed {
         require(positionId<=depositedTokens[msg.sender].length.sub(1));
-        withdraw_position=depositedTokens[msg.sender][positionId];
-        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period days, "You recently staked, please wait before withdrawing.");
+        Position withdraw_position=depositedTokens[msg.sender][positionId];
+        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period* 1 days, "You recently staked, please wait before withdrawing.");
         
         updateAccount(msg.sender);
         
@@ -183,16 +182,16 @@ contract DAO1FarmingUniswap is Ownable {
     // withdraw without caring about Rewards
     function emergencyWithdraw(uint positionId) external noContractsAllowed {
         require(positionId<=depositedTokens[msg.sender].length.sub(1));
-        withdraw_position=depositedTokens[msg.sender][positionId];
-        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period days, "You recently staked, please wait before withdrawing.");
+        Position withdraw_position=depositedTokens[msg.sender][positionId];
+        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period * 1 days, "You recently staked, please wait before withdrawing.");
         
         // manual update account here without withdrawing pending rewards
         disburseTokens();
         lastClaimedTime[msg.sender] = block.timestamp;
         lastDivPoints[msg.sender] = totalDivPoints;
         
-        uint fee = amountToWithdraw.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
-        uint amountAfterFee = amountToWithdraw.sub(fee);
+        uint fee = withdraw_position.amount.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
+        uint amountAfterFee = withdraw_position.amount.sub(fee);
         
         require(IERC20(trustedDepositTokenAddress).transfer(owner(), fee), "Fee transfer failed!");
         
