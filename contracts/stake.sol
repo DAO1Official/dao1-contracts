@@ -132,13 +132,13 @@ contract DAO1FarmingUniswap is Ownable {
     }
 
     function getPositions(address holder) public view returns (Position[] memory) {
-        Position[] memory TruePosition;
+        Position[] memory ValidPosition;
          for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
             if (depositedTokens[holder][i].status==true){
-                TruePosition[i]=depositedTokens[holder][i]
+                ValidPosition[i]=depositedTokens[holder][i]
             }
         }
-        return TruePosition;
+        return ValidPosition;
     }
     
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
