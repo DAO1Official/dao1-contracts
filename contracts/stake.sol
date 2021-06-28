@@ -141,7 +141,6 @@ contract DAO1FarmingUniswap is Ownable {
         return TruePosition;
     }
     
-    
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
         require(block.timestamp.add(LOCKUP_TIME) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
@@ -177,16 +176,16 @@ contract DAO1FarmingUniswap is Ownable {
         withdraw_position.status = false;
         totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (holders.contains(msg.sender) && depositedTokens[msg.sender] == 0) {
+        if (getPositions(msg.sender).length == 0) {
             holders.remove(msg.sender);
         }
     }
     
     // withdraw without caring about Rewards
-    function emergencyWithdraw(uint amountToWithdraw) external noContractsAllowed {
-        require(amountToWithdraw > 0, "Cannot withdraw 0 Tokens!");
-        require(block.timestamp.sub(depositTime[msg.sender]) > LOCKUP_TIME, "You recently staked, please wait before withdrawing.");
-        require(depositedTokens[msg.sender] >= amountToWithdraw, "Invalid amount to withdraw");
+    function emergencyWithdraw(uint positionId) external noContractsAllowed {
+        require(positionId<=depositedTokens[msg.sender].length.sub(1));
+        withdraw_position=depositedTokens[msg.sender][positionId];
+        require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period days, "You recently staked, please wait before withdrawing.");
         
         // manual update account here without withdrawing pending rewards
         disburseTokens();
@@ -200,10 +199,10 @@ contract DAO1FarmingUniswap is Ownable {
         
         require(IERC20(trustedDepositTokenAddress).transfer(msg.sender, amountAfterFee), "Could not transfer tokens.");
         
-        depositedTokens[msg.sender] = depositedTokens[msg.sender].sub(amountToWithdraw);
-        totalTokens = totalTokens.sub(amountToWithdraw);
+        withdraw_position.status = false;
+        totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (holders.contains(msg.sender) && depositedTokens[msg.sender] == 0) {
+        if (getPositions(msg.sender).length == 0) {
             holders.remove(msg.sender);
         }
     }
