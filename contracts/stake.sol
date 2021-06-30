@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 
-contract DAO1FarmingUniswap is Ownable {
+contract DAO1Stake is Ownable {
     using SafeMath for uint;
     using Address for address;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -58,7 +58,6 @@ contract DAO1FarmingUniswap is Ownable {
         uint256 depositTime;
         uint256 period;
         uint256 amount;
-        uint256 positionId;
         bool status;
     }
 
@@ -85,66 +84,79 @@ contract DAO1FarmingUniswap is Ownable {
     }
     
     
-    function updateAccount(address account) private {
-        disburseTokens();
-        uint pendingDivs = getPendingDivs(account);
-        if (pendingDivs > 0) {
-            require(IERC20(trustedRewardTokenAddress).transfer(account, pendingDivs), "Could not transfer tokens.");
-            totalEarnedTokens[account] = totalEarnedTokens[account].add(pendingDivs);
-            totalClaimedRewards = totalClaimedRewards.add(pendingDivs);
-            emit RewardsTransferred(account, pendingDivs);
-        }
-        lastClaimedTime[account] = block.timestamp;
-        lastDivPoints[account] = totalDivPoints;
-    }
+    // function updateAccount(address account) private {
+    //     disburseTokens();
+    //     uint pendingDivs = getPendingDivs(account);
+    //     if (pendingDivs > 0) {
+    //         require(IERC20(trustedRewardTokenAddress).transfer(account, pendingDivs), "Could not transfer tokens.");
+    //         totalEarnedTokens[account] = totalEarnedTokens[account].add(pendingDivs);
+    //         totalClaimedRewards = totalClaimedRewards.add(pendingDivs);
+    //         emit RewardsTransferred(account, pendingDivs);
+    //     }
+    //     lastClaimedTime[account] = block.timestamp;
+    //     lastDivPoints[account] = totalDivPoints;
+    // }
     
-    function getPendingDivs(address _holder) public view returns (uint) {
-        if (!holders.contains(_holder)) return 0;
-        if (getPositions(_holder).length == 0) return 0;
+    // function getPendingDivs(address _holder) public view returns (uint) {
+    //     if (!holders.contains(_holder)) return 0;
+    //     if (getPositions(_holder).length == 0) return 0;
         
-        uint newDivPoints = totalDivPoints.sub(lastDivPoints[_holder]);
+    //     uint newDivPoints = totalDivPoints.sub(lastDivPoints[_holder]);
 
-        uint depositedAmount = depositedTokens[_holder];
+    //     uint depositedAmount = depositedTokens[_holder];
         
-        uint pendingDivs = depositedAmount.mul(newDivPoints).div(pointMultiplier);
+    //     uint pendingDivs = depositedAmount.mul(newDivPoints).div(pointMultiplier);
             
-        return pendingDivs;
-    }
+    //     return pendingDivs;
+    // }
     
-    function getEstimatedPendingDivs(address _holder) public view returns (uint) {
-        uint pendingDivs = getPendingDivs(_holder);
-        uint pendingDisbursement = getPendingDisbursement();
-        if (contractBalance < pendingDisbursement) {
-            pendingDisbursement = contractBalance;
-        }
-        uint depositedAmount = depositedTokens[_holder];
-        if (depositedAmount == 0) return 0;
-        if (totalTokens == 0) return 0;
+    // function getEstimatedPendingDivs(address _holder) public view returns (uint) {
+    //     uint pendingDivs = getPendingDivs(_holder);
+    //     uint pendingDisbursement = getPendingDisbursement();
+    //     if (contractBalance < pendingDisbursement) {
+    //         pendingDisbursement = contractBalance;
+    //     }
+    //     uint depositedAmount = depositedTokens[_holder];
+    //     if (depositedAmount == 0) return 0;
+    //     if (totalTokens == 0) return 0;
         
-        uint myShare = depositedAmount.mul(pendingDisbursement).div(totalTokens);
+    //     uint myShare = depositedAmount.mul(pendingDisbursement).div(totalTokens);
                                 
-        return pendingDivs.add(myShare);
-    }
+    //     return pendingDivs.add(myShare);
+    // }
     
     function getNumberOfHolders() public view returns (uint) {
         return holders.length();
     }
 
-    function getPositions(address holder) public view returns (Position[] memory) {
-        Position[] memory ValidPosition;
+    function CountPositions(address holder) public view returns(uint256) {
+        uint256 counter=0;
          for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
             if (depositedTokens[holder][i].status==true){
-                ValidPosition[i]=depositedTokens[holder][i];
+                counter+=1;
             }
         }
-        return ValidPosition;
+        return counter;
+    }
+
+    function getPosition(address holder,uint256 id) public view returns (Position memory) {
+        require(id<CountPositions(holder),"index out of range");
+        uint256 counter=0;
+        for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
+            if (depositedTokens[holder][i].status==true) {
+                if (counter==id){
+                    return depositedTokens[holder][i];
+                }
+                counter+=1;
+            }
+        }
     }
     
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
         require(block.timestamp.add(period* 1 days) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
         
-        updateAccount(msg.sender);
+        // updateAccount(msg.sender);
         
         require(IERC20(trustedDepositTokenAddress).transferFrom(msg.sender, address(this), amountToDeposit), "Insufficient Token Allowance");
         
@@ -152,17 +164,17 @@ contract DAO1FarmingUniswap is Ownable {
         uint amountAfterFee = amountToDeposit.sub(fee);
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
-        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,depositedTokens[msg.sender].length,true));
+        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,true));
         totalTokens = totalTokens.add(amountAfterFee);
         holders.add(msg.sender);
     }
     
     function withdraw(uint positionId) external noContractsAllowed {
         require(positionId<=depositedTokens[msg.sender].length.sub(1));
-        Position withdraw_position=depositedTokens[msg.sender][positionId];
+        Position memory withdraw_position=depositedTokens[msg.sender][positionId];
         require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period* 1 days, "You recently staked, please wait before withdrawing.");
         
-        updateAccount(msg.sender);
+        // updateAccount(msg.sender);
         
         uint fee = withdraw_position.amount.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
         uint amountAfterFee = withdraw_position.amount.sub(fee);
@@ -174,7 +186,7 @@ contract DAO1FarmingUniswap is Ownable {
         withdraw_position.status = false;
         totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (getPositions(msg.sender).length == 0) {
+        if (CountPositions(msg.sender) == 0) {
             holders.remove(msg.sender);
         }
     }
@@ -182,7 +194,7 @@ contract DAO1FarmingUniswap is Ownable {
     // withdraw without caring about Rewards
     function emergencyWithdraw(uint positionId) external noContractsAllowed {
         require(positionId<=depositedTokens[msg.sender].length.sub(1));
-        Position withdraw_position=depositedTokens[msg.sender][positionId];
+        Position memory withdraw_position=depositedTokens[msg.sender][positionId];
         require(block.timestamp.sub(withdraw_position.depositTime) < withdraw_position.period * 1 days, "You recently staked, please wait before withdrawing.");
         
         // manual update account here without withdrawing pending rewards
@@ -200,14 +212,14 @@ contract DAO1FarmingUniswap is Ownable {
         withdraw_position.status = false;
         totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (getPositions(msg.sender).length == 0) {
+        if (CountPositions(msg.sender) == 0) {
             holders.remove(msg.sender);
         }
     }
     
-    function claim() public {
-        updateAccount(msg.sender);
-    }
+    // function claim() public {
+    //     updateAccount(msg.sender);
+    // }
     
     function disburseTokens() private {
         uint amount = getPendingDisbursement();
@@ -238,7 +250,6 @@ contract DAO1FarmingUniswap is Ownable {
         } else {
             timeDiff = _now.sub(lastDisburseTime);   
         }
-        
         uint pendingDisburse = disburseAmount
                                     .mul(disbursePercentX100)
                                     .mul(timeDiff)
@@ -266,9 +277,9 @@ contract DAO1FarmingUniswap is Ownable {
             address staker = holders.at(i);
             uint listIndex = i.sub(startIndex);
             _stakers[listIndex] = staker;
-            _stakingTimestamps[listIndex] = depositTime[staker];
+            // _stakingTimestamps[listIndex] = depositTime[staker];
             _lastClaimedTimeStamps[listIndex] = lastClaimedTime[staker];
-            _stakedTokens[listIndex] = depositedTokens[staker];
+            // _stakedTokens[listIndex] = depositedTokens[staker];
         }
         
         return (_stakers, _stakingTimestamps, _lastClaimedTimeStamps, _stakedTokens);
