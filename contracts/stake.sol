@@ -164,7 +164,6 @@ contract DAO1Stake is Ownable {
     }
     
     function deposit(uint256 amountToDeposit, uint256 period) external noContractsAllowed {
-        require(block.timestamp.add(period* 1 days) <= contractDeployTime.add(disburseDuration), "Deposits are closed now!");
         require(amountToDeposit > 0, "Cannot deposit 0 Tokens");
         
         // updateAccount(msg.sender);
@@ -175,15 +174,15 @@ contract DAO1Stake is Ownable {
         uint amountAfterFee = amountToDeposit.sub(fee);
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
-        depositedTokens[msg.sender].push(Position(block.timestamp,period,amountToDeposit,true));
+        depositedTokens[msg.sender].push(Position(_getCurrentBlockTime(),period,amountToDeposit,true));
         totalTokens = totalTokens.add(amountAfterFee);
         holders.add(msg.sender);
     }
     
     function withdraw(uint positionId) external noContractsAllowed {
-        require(positionId<=depositedTokens[msg.sender].length.sub(1));
+        require(positionId<depositedTokens[msg.sender].length,"index out of range");
         Position storage withdraw_position=depositedTokens[msg.sender][positionId];
-        require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < block.timestamp, "You recently staked, please wait before withdrawing.");
+        require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < _getCurrentBlockTime(), "You recently staked, please wait before withdrawing.");
         
         // updateAccount(msg.sender);
         
@@ -204,13 +203,13 @@ contract DAO1Stake is Ownable {
     
     // withdraw without caring about Rewards
     function emergencyWithdraw(uint positionId) external noContractsAllowed {
-        require(positionId<=depositedTokens[msg.sender].length.sub(1));
+        require(positionId<depositedTokens[msg.sender].length,"index out of range");
         Position storage withdraw_position=depositedTokens[msg.sender][positionId];
-        require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < block.timestamp, "You recently staked, please wait before withdrawing.");
+        require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < _getCurrentBlockTime(), "You recently staked, please wait before withdrawing.");
         
         // manual update account here without withdrawing pending rewards
         disburseTokens();
-        lastClaimedTime[msg.sender] = block.timestamp;
+        lastClaimedTime[msg.sender] = _getCurrentBlockTime();
         lastDivPoints[msg.sender] = totalDivPoints;
         
         uint fee = withdraw_position.amount.mul(UNSTAKING_FEE_RATE_X_100).div(100e2);
@@ -245,13 +244,13 @@ contract DAO1Stake is Ownable {
         emit RewardsDisbursed(amount);
         
         contractBalance = contractBalance.sub(amount);
-        lastDisburseTime = block.timestamp;
+        lastDisburseTime = _getCurrentBlockTime();
         
     }
     
     function getPendingDisbursement() public view returns (uint) {
         uint timeDiff;
-        uint _now = block.timestamp;
+        uint _now = _getCurrentBlockTime();
         uint _stakingEndTime = contractDeployTime.add(disburseDuration);
         if (_now > _stakingEndTime) {
             _now = _stakingEndTime;
@@ -301,7 +300,7 @@ contract DAO1Stake is Ownable {
     function transferAnyERC20Token(address _tokenAddr, address _to, uint _amount) public onlyOwner {
         
         require(_tokenAddr != trustedDepositTokenAddress, "Admin cannot transfer out deposit tokens from this vault!");
-        require((_tokenAddr != trustedRewardTokenAddress) || (block.timestamp > adminClaimableTime), "Admin cannot Transfer out Reward Tokens Yet!");
+        require((_tokenAddr != trustedRewardTokenAddress) || (_getCurrentBlockTime() > adminClaimableTime), "Admin cannot Transfer out Reward Tokens Yet!");
         require(IERC20(_tokenAddr).transfer(_to, _amount), "Could not transfer out tokens!");
     }
     
@@ -309,8 +308,13 @@ contract DAO1Stake is Ownable {
     function transferAnyOldERC20Token(address _tokenAddr, address _to, uint _amount) public onlyOwner {
         
         require(_tokenAddr != trustedDepositTokenAddress, "Admin cannot transfer out deposit tokens from this vault!");
-        require((_tokenAddr != trustedRewardTokenAddress) || (block.timestamp > adminClaimableTime), "Admin cannot Transfer out Reward Tokens Yet!");
+        require((_tokenAddr != trustedRewardTokenAddress) || (_getCurrentBlockTime() > adminClaimableTime), "Admin cannot Transfer out Reward Tokens Yet!");
         
         IERC20(_tokenAddr).transfer(_to, _amount);
+    }
+
+    // Returns block.timestamp, overridable for test purposes.
+    function _getCurrentBlockTime() virtual internal view returns (uint256) {
+        return block.timestamp;
     }
 }
