@@ -19,24 +19,24 @@ contract DAO1Stake is Ownable {
     // deposit token contract address and reward token contract address
     // these contracts are "trusted" and checked to not contain re-entrancy pattern 
     // to safely avoid checks-effects-interactions where needed to simplify logic
-    address public trustedDepositTokenAddress = 0xF94556124786E08171d278a75cf1b46eE9592227;
-    address public trustedRewardTokenAddress = 0xCE3f6f6672616c39D8B6858F8DAC9902eCa42C84; 
+    address public trustedDepositTokenAddress;
+    address public trustedRewardTokenAddress; 
     
-    uint public constant STAKING_FEE_RATE_X_100 = 50;
-    uint public constant UNSTAKING_FEE_RATE_X_100 = 50;
+    uint public constant STAKING_FEE_RATE_X_100=50;
+    uint public constant UNSTAKING_FEE_RATE_X_100=50;
 
     // Amount of tokens
-    uint public disburseAmount = 5400e18;
+    uint public disburseAmount;
     // To be disbursed continuously over this duration
-    uint public disburseDuration = 180 days;
+    uint public disburseDuration;
     
     // If there are any undistributed or unclaimed tokens left in contract after this time
     // Admin can claim them
-    uint public adminCanClaimAfter = 200 days;
+    uint public adminCanClaimAfter;
     
     
     // do not change this => disburse 100% rewards over `disburseDuration`
-    uint public disbursePercentX100 = 100e2;
+    uint public disbursePercentX100;
     
     uint public contractDeployTime;
     uint public adminClaimableTime;
@@ -48,10 +48,21 @@ contract DAO1Stake is Ownable {
         _;
     }
     
-    constructor() {
+    constructor(address _trustedDepositTokenAddress,address _trustedRewardTokenAddress) {
         contractDeployTime = block.timestamp;
         adminClaimableTime = contractDeployTime.add(adminCanClaimAfter);
         lastDisburseTime = contractDeployTime;
+
+        trustedDepositTokenAddress = _trustedDepositTokenAddress;
+        trustedRewardTokenAddress = _trustedRewardTokenAddress; 
+
+        disburseAmount = 5400e18;
+
+        disburseDuration = 180 days;
+    
+        adminCanClaimAfter = 200 days;
+    
+        disbursePercentX100 = 100e2;
     }
     
     struct Position {
