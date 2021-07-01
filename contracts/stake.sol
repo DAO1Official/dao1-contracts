@@ -77,6 +77,8 @@ contract DAO1Stake is Ownable {
     EnumerableSet.AddressSet private holders;
     
     mapping (address => Position[]) depositedTokens;
+    mapping (address => uint) public CountPositions;
+
     mapping (address => uint) public lastClaimedTime;
     mapping (address => uint) public totalEarnedTokens;
     mapping (address => uint) public lastDivPoints;
@@ -140,18 +142,9 @@ contract DAO1Stake is Ownable {
         return holders.length();
     }
 
-    function CountPositions(address holder) public view returns(uint256) {
-        uint256 counter=0;
-         for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
-            if (depositedTokens[holder][i].status==true){
-                counter+=1;
-            }
-        }
-        return counter;
-    }
 
     function getPosition(address holder,uint256 id) public view returns (Position memory) {
-        require(id<CountPositions(holder),"index out of range");
+        require(id<CountPositions[holder],"index out of range");
         uint256 counter=0;
         for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
             if (depositedTokens[holder][i].status==true) {
@@ -175,6 +168,8 @@ contract DAO1Stake is Ownable {
         
         // require(Token(trustedDepositTokenAddress).transfer(owner, fee), "Fee transfer failed!");
         depositedTokens[msg.sender].push(Position(_getCurrentBlockTime(),period,amountToDeposit,true));
+        CountPositions[msg.sender]=CountPositions[msg.sender].add(1);
+
         totalTokens = totalTokens.add(amountAfterFee);
         holders.add(msg.sender);
     }
@@ -194,9 +189,11 @@ contract DAO1Stake is Ownable {
         require(IERC20(trustedDepositTokenAddress).transfer(msg.sender, amountAfterFee), "Could not transfer tokens.");
         
         withdraw_position.status = false;
+        CountPositions[msg.sender]=CountPositions[msg.sender].sub(1);
+
         totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (CountPositions(msg.sender) == 0) {
+        if (CountPositions[msg.sender] == 0) {
             holders.remove(msg.sender);
         }
     }
@@ -220,9 +217,11 @@ contract DAO1Stake is Ownable {
         require(IERC20(trustedDepositTokenAddress).transfer(msg.sender, amountAfterFee), "Could not transfer tokens.");
         
         withdraw_position.status = false;
+        CountPositions[msg.sender]=CountPositions[msg.sender].sub(1);
+
         totalTokens = totalTokens.sub(withdraw_position.amount);
         
-        if (CountPositions(msg.sender) == 0) {
+        if (CountPositions[msg.sender] == 0) {
             holders.remove(msg.sender);
         }
     }

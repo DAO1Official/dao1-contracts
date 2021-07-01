@@ -87,7 +87,7 @@ describe("DAO1Stake", function() {
     });
   });
 
-  describe("CountPositions function", function() {
+  describe("CountPositions mapping", function() {
     it("initial zero counter", async function() {
       count=BigNumber.from("0");
       expect(await DAO1Stake.CountPositions(addr1.address)).to.equal(count);
