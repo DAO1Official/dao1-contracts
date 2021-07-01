@@ -96,7 +96,6 @@ contract DAO1Stake is Ownable {
         contractBalance = contractBalance.add(amount);
     }
     
-    
     // function updateAccount(address account) private {
     //     disburseTokens();
     //     uint pendingDivs = getPendingDivs(account);
@@ -142,13 +141,12 @@ contract DAO1Stake is Ownable {
         return holders.length();
     }
 
-
-    function getPosition(address holder,uint256 id) public view returns (Position memory) {
-        require(id<CountPositions[holder],"index out of range");
+    function getPosition(address holder,uint256 positionId) public view returns (Position memory) {
+        require(positionId<CountPositions[holder],"index out of range");
         uint256 counter=0;
         for (uint256 i = 0; i < depositedTokens[holder].length; i++) {
             if (depositedTokens[holder][i].status==true) {
-                if (counter==id){
+                if (counter==positionId){
                     return depositedTokens[holder][i];
                 }
                 counter+=1;
@@ -175,8 +173,18 @@ contract DAO1Stake is Ownable {
     }
     
     function withdraw(uint positionId) external noContractsAllowed {
-        require(positionId<depositedTokens[msg.sender].length,"index out of range");
-        Position storage withdraw_position=depositedTokens[msg.sender][positionId];
+        require(positionId<CountPositions[msg.sender],"index out of range");
+        uint256 counter=0;
+        Position storage withdraw_position;
+        for (uint256 i = 0; i < depositedTokens[msg.sender].length; i++) {
+            if (depositedTokens[msg.sender][i].status==true) {
+                if (counter==positionId){
+                    withdraw_position=depositedTokens[msg.sender][i];
+                    break;
+                }
+                counter+=1;
+            }
+        }
         require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < _getCurrentBlockTime(), "You recently staked, please wait before withdrawing.");
         
         // updateAccount(msg.sender);
@@ -201,7 +209,17 @@ contract DAO1Stake is Ownable {
     // withdraw without caring about Rewards
     function emergencyWithdraw(uint positionId) external noContractsAllowed {
         require(positionId<depositedTokens[msg.sender].length,"index out of range");
-        Position storage withdraw_position=depositedTokens[msg.sender][positionId];
+                uint256 counter=0;
+        Position storage withdraw_position;
+        for (uint256 i = 0; i < depositedTokens[msg.sender].length; i++) {
+            if (depositedTokens[msg.sender][i].status==true) {
+                if (counter==positionId){
+                    withdraw_position=depositedTokens[msg.sender][i];
+                    break;
+                }
+                counter+=1;
+            }
+        }
         require(withdraw_position.depositTime.add(withdraw_position.period* 1 days) < _getCurrentBlockTime(), "You recently staked, please wait before withdrawing.");
         
         // manual update account here without withdrawing pending rewards
