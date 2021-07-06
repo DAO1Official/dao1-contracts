@@ -19,12 +19,11 @@ describe("DAO1Stake", function () {
     this.rewardToken = await this.token.deploy("DAO2", "DAO2", this.owner.address)
     this.pool = await this.contract.deploy(this.depositToken.address, this.rewardToken.address)
 
-    this.alice_balance_depositToken = 20000
     this.alice_deposit = 10000
     this.fee = 0.005
 
-    await this.depositToken.transfer(this.alice.address, this.alice_balance_depositToken)
-    await this.depositToken.connect(this.alice).approve(this.pool.address, this.alice_balance_depositToken)
+    await this.depositToken.transfer(this.alice.address, this.alice_deposit)
+    await this.depositToken.connect(this.alice).approve(this.pool.address, this.alice_deposit)
 
     owner_balance = await this.depositToken.balanceOf(this.owner.address)
     await this.depositToken.transfer(this.bob.address, owner_balance)
@@ -69,19 +68,17 @@ describe("DAO1Stake", function () {
       expect(ownerBalance).to.equal(balance)
     })
 
-    it("getting a reward for not the first deposits // bad work?", async function () {
+    it("getting a reward for not the first deposits // bad work? Logs above", async function () {
+      await this.depositToken.connect(this.bob).transfer(this.alice.address, this.alice_deposit)
+      await this.depositToken.connect(this.alice).approve(this.pool.address, this.alice_deposit)
+
       await this.rewardToken.approve(this.pool.address, 1000000)
       await this.pool.addContractBalance(1000000)
 
       total_reward = await this.pool.contractBalance()
-      //expect(balance2).to.equal(100000);
-
       balance1 = await this.rewardToken.balanceOf(this.alice.address)
-      balance4 = await this.pool.contractBalance()
-      await this.pool.connect(this.alice).deposit(this.alice_deposit,{from:this.alice.address});
-      //await this.pool.connect(this.alice).claim()
+      await this.pool.connect(this.alice).deposit(this.alice_deposit)
       balance2 = await this.rewardToken.balanceOf(this.alice.address)
-      balance3 = await this.pool.contractBalance()
 
       console.log("total number of reward tokens", total_reward.toString())
       console.log("initial balance of reward tokens", balance1.toString())
@@ -91,10 +88,11 @@ describe("DAO1Stake", function () {
     it("can't deposit 0 token", async function () {
       await expect(this.pool.deposit(0)).to.be.revertedWith("Cannot deposit 0 Tokens")
     })
-    //it("can't deposit more than the balance", async function() {
-    //  await expect(this.pool.deposit(ownerBalance,period1)).to.be.revertedWith("Insufficient Token Allowance");
-    //});
-    // !!!! TODO: outputs the ERC20 error code of the contract, then whether it is necessary to check this operation in the contract using require?
+
+    it("can't deposit more than the balance", async function () {
+      await expect(this.pool.deposit(10000)).to.be.revertedWith("ERC20: transfer amount exceeds balance")
+    })
+
     it("not possible to make a deposit after the specified days from the date of creation of the contract", async function () {
       disburseDuration = await this.pool.disburseDuration()
       LOCKUP_TIME = await this.pool.LOCKUP_TIME()
@@ -104,75 +102,66 @@ describe("DAO1Stake", function () {
     })
   })
 
-  // describe("getPosition function", function() {
-  //   it("index out of range", async function() {
-  //     await expect(DAO1Stake.getPosition(owner.address,5)).to.be.revertedWith("index out of range");
-  //   });
-  //   it("get position by position id", async function() {
-  //     ZeroPosition=await DAO1Stake.getPosition(owner.address,0);
-  //     amount=BigNumber.from(amount1.toString())
-  //     period=BigNumber.from(period1.toString())
-  //     expect(ZeroPosition["depositTime"]).to.equal(time)
-  //     expect(ZeroPosition["period"]).to.equal(period);;
-  //     expect(ZeroPosition["amount"]).to.equal(amount);
-  //     expect(ZeroPosition["status"]).to.equal(true);
+  describe("withdraw function", function () {
+    // write checks that the tokens were actually debited from the contract to the owner's address
+    it("can't withdraw 0 token", async function () {
+      await expect(this.pool.withdraw(0)).to.be.revertedWith("Cannot withdraw 0 Tokens")
+    })
 
-  //   });
+    it("you can't withdraw until the stake period has passed", async function () {
+      await expect(this.pool.connect(this.alice).withdraw(5000)).to.be.revertedWith("You recently staked, please wait before withdrawing.")
+    })
 
-  // });
+    describe("Stake period has passed", function () {
+      beforeEach(async function () {
+        LOCKUP_TIME = await this.pool.LOCKUP_TIME()
+        await network.provider.send("evm_increaseTime", [parseInt(LOCKUP_TIME) + 1])
+      })
 
-  // describe("withdraw function", function() { // write checks that the tokens were actually debited from the contract to the owner's address
-  //   it("index out of range", async function() {
-  //     await expect(DAO1Stake.withdraw(5)).to.be.revertedWith("index out of range");
-  //   });
-  //   it("you can't withdraw until the stake period has passed", async function() {
-  //     await expect(DAO1Stake.withdraw(0)).to.be.revertedWith("You recently staked, please wait before withdrawing.");
-  //   });
-  //   it("withdraw when stake period has passed", async function() {
-  //     count=BigNumber.from("2");
-  //     time=BigNumber.from((period1*24*60*60+1).toString())
+      it("you can't withdraw more than you have on the balance sheet", async function () {
+        await expect(this.pool.connect(this.alice).withdraw(this.alice_deposit)).to.be.revertedWith("Invalid amount to withdraw")
+      })
 
-  //     await DAO1Stake.setCurrentBlockTime(time);
-  //     await DAO1Stake.withdraw(0);
+      it("withdraw when stake period has passed", async function () {
+        await this.pool.connect(this.alice).withdraw(this.alice_deposit / 2)
+        contract_balance = await this.depositToken.balanceOf(this.pool.address)
+        holder_balance = await this.depositToken.balanceOf(this.alice.address)
+        pool_balance = await this.pool.depositedTokens(this.alice.address)
+        expected_pool_balance = this.alice_deposit * (1 - this.fee) - this.alice_deposit / 2
+        expect(contract_balance).to.equal(this.alice_deposit * (1 - this.fee) - this.alice_deposit / 2)
+        expect(holder_balance).to.equal((this.alice_deposit / 2) * (1 - this.fee))
+        expect(pool_balance).to.equal(expected_pool_balance)
+      })
 
-  //     contract_balance = await DAO1.balanceOf(DAO1Stake.address);
-  //     holder_balance = await DAO1.balanceOf(owner.address);
-  //     expect(contract_balance).to.equal(BigNumber.from((amount-amount1).toString()))
-  //     balance=BigNumber.from("3599999999999999999999850") // the initial balance, set in the dao1 smart contract minus amount2, amount3
-  //     expect(holder_balance).to.equal(balance)
+      it("owner receives fee for the withdraw", async function () {
+        await this.pool.connect(this.alice).withdraw(this.alice_deposit / 2)
+        ownerBalance = await this.depositToken.balanceOf(this.owner.address)
 
-  //     ZeroPosition=await DAO1Stake.getPosition(owner.address,0);
-  //     amount0=BigNumber.from(amount1.toString())
-  //     period0=BigNumber.from(period1.toString())
-  //     time0=BigNumber.from("0")
-  //     if ((ZeroPosition["depositTime"]._hex===time0._hex) && (ZeroPosition["period"]._hex===period0._hex) && (ZeroPosition["amount"]._hex===amount0._hex)){
-  //       expect(1).to.equal(0);
-  //     }
+        deposit_fee = this.alice_deposit * this.fee
+        withdraw_fee = (this.alice_deposit / 2) * this.fee
+        expect(ownerBalance).to.equal(deposit_fee + withdraw_fee)
+      })
 
-  //     await DAO1Stake.withdraw(0);
-  //     ZeroPosition2=await DAO1Stake.getPosition(owner.address,0);
-  //     if ((ZeroPosition["depositTime"]._hex===ZeroPosition2["depositTime"]._hex) && (ZeroPosition["period"]._hex===ZeroPosition2["period"]._hex) && (ZeroPosition["amount"]._hex===ZeroPosition2["amount"]._hex)){
-  //       expect(2).to.equal(0);
-  //      }
-  //   });
-  // });
+      it("decrease in the total number of deposit tokens during the withdraw", async function () {
+        await this.pool.connect(this.alice).withdraw(this.alice_deposit / 2)
+        contract_balance = await this.pool.totalTokens()
+        expected_balance = this.alice_deposit * (1 - this.fee) - this.alice_deposit / 2
+        expect(expected_balance).to.equal(contract_balance)
+      })
 
-  // describe("CountPositions mapping", function() {
-  //   it("initial zero counter", async function() {
-  //     count=BigNumber.from("0");
-  //     expect(await DAO1Stake.CountPositions(this.alice.address)).to.equal(count);
-  //   });
-  //   it("increasing the counter when making a deposit", async function() {
-  //     count=BigNumber.from("3");
-  //     expect(await DAO1Stake.CountPositions(owner.address)).to.equal(count);
-  //   });
-  //   it("reducing the counter when withdrawing position", async function() {
-  //     count=BigNumber.from("2");
-  //     time=BigNumber.from((period1*24*60*60+1).toString())
-  //     await DAO1Stake.setCurrentBlockTime(time);
-  //     await DAO1Stake.withdraw(0);
-  //     expect(await DAO1Stake.CountPositions(owner.address)).to.equal(count);
+      it("getting a reward when withdrawing funds // bad work? Logs above", async function () {
+        await this.rewardToken.approve(this.pool.address, 1000000)
+        await this.pool.addContractBalance(1000000)
 
-  //   });
-  //   });
+        total_reward = await this.pool.contractBalance()
+        balance1 = await this.rewardToken.balanceOf(this.alice.address)
+        await this.pool.connect(this.alice).withdraw(this.alice_deposit / 2)
+        balance2 = await this.rewardToken.balanceOf(this.alice.address)
+
+        console.log("total number of reward tokens", total_reward.toString())
+        console.log("initial balance of reward tokens", balance1.toString())
+        console.log("the balance of reward tokens after receiving the reward", balance2.toString())
+      })
+    })
+  })
 })

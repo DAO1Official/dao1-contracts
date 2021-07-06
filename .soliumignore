@@ -6,3 +6,4 @@ contracts/MaticDAO1FarmingQuickswap.sol
 contracts/YfDaiFarmingUniswap.sol
 contracts/DAO1FarmingSafeswap.sol
 contracts/MaticDAO1FarmingQuickswap2.sol
+contracts/DAO1token.sol
