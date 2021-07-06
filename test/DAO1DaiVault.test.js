@@ -4,86 +4,103 @@ const { BigNumber } = require("ethers")
 //const { ZERO_ADDRESS } = constants;
 
 describe("DAO1Stake", function () {
+  before(async function () {
+    this.signers = await ethers.getSigners()
+    this.owner = this.signers[0]
+    this.alice = this.signers[1]
+    this.bob = this.signers[2]
+
+    this.token = await ethers.getContractFactory("DAO1")
+    this.contract = await ethers.getContractFactory("DAO1DaiVaultMock")
+  })
+
   beforeEach(async function () {
-    ;[owner, addr1, addr2, ...addrs] = await ethers.getSigners()
-    DAO1factory = await ethers.getContractFactory("DAO1")
-    DAO1 = await DAO1factory.deploy("DAO1", "DAO1", owner.address)
-    DAO2 = await DAO1factory.deploy("DAO2", "DAO2", owner.address)
+    this.depositToken = await this.token.deploy("DAO1", "DAO1", this.owner.address)
+    this.rewardToken = await this.token.deploy("DAO2", "DAO2", this.owner.address)
+    this.pool = await this.contract.deploy(this.depositToken.address, this.rewardToken.address)
 
-    DAO1Stake = await ethers.getContractFactory("DAO1DaiVaultMock")
-    DAO1Stake = await DAO1Stake.deploy()
-    await DAO1Stake.ChangeDepositToken(DAO1.address)
-    await DAO1Stake.ChangeRewardToken(DAO2.address)
+    this.alice_balance_depositToken = 20000
+    this.alice_deposit = 10000
+    this.fee = 0.005
 
-    ownerBalance = await DAO1.balanceOf(owner.address)
-    amount = 20000
-    await DAO1.transfer(addr1.address, amount)
-    await DAO1.connect(addr1).approve(DAO1Stake.address, amount)
-    amount = 10000
-    fee = 0.005
-    time = BigNumber.from("0")
+    await this.depositToken.transfer(this.alice.address, this.alice_balance_depositToken)
+    await this.depositToken.connect(this.alice).approve(this.pool.address, this.alice_balance_depositToken)
 
-    await DAO1Stake.connect(addr1).deposit(amount, { from: addr1.address })
+    owner_balance = await this.depositToken.balanceOf(this.owner.address)
+    await this.depositToken.transfer(this.bob.address, owner_balance)
+
+    await this.pool.connect(this.alice).deposit(this.alice_deposit)
+  })
+
+  it("should be deployed", async function () {
+    const deployed = await this.pool.deployed()
+    expect(deployed, true)
+  })
+
+  it("should have correct state variables", async function () {
+    expect(await this.pool.owner()).to.equal(this.owner.address)
   })
 
   describe("deposit function", function () {
     it("deposit token on stake contract", async function () {
-      // the test fails because the line for transferring the fee to the contract owner is commented out
-      contract_balance = await DAO1.balanceOf(DAO1Stake.address)
-      expected_balance = BigNumber.from((amount * (1 - fee)).toString())
+      contract_balance = await this.depositToken.balanceOf(this.pool.address)
+      expected_balance = BigNumber.from((this.alice_deposit * (1 - this.fee)).toString())
       expect(expected_balance).to.equal(contract_balance)
     })
 
     it("increase in the total number of deposit tokens during the deposit", async function () {
-      contract_balance = await DAO1Stake.totalTokens()
-      expected_balance = BigNumber.from((amount * (1 - fee)).toString())
+      contract_balance = await this.pool.totalTokens()
+      expected_balance = BigNumber.from((this.alice_deposit * (1 - this.fee)).toString())
       expect(expected_balance).to.equal(contract_balance)
     })
 
     it("creating a position for the user", async function () {
-      deposit = await DAO1Stake.depositedTokens(addr1.address)
-      depositTime = await DAO1Stake.depositTime(addr1.address)
+      deposit = await this.pool.depositedTokens(this.alice.address)
+      depositTime = await this.pool.depositTime(this.alice.address)
       blockTime = await network.provider.send("eth_getBlockByNumber", ["latest", false])
       expect(blockTime.timestamp).to.equal(depositTime._hex)
-      expected_deposit = BigNumber.from((amount * (1 - fee)).toString())
+      expected_deposit = BigNumber.from((this.alice_deposit * (1 - this.fee)).toString())
       expect(deposit).to.equal(expected_deposit)
     })
 
     it("owner receives fee for the deposit", async function () {
-      // the test fails because the line for transferring the fee to the contract owner is commented out
-      ownerBalance2 = await DAO1.balanceOf(owner.address)
-      balance = BigNumber.from("3599999999999999999980050") // the initial balance, set in the dao1 smart contract minus amount plus fee
-      expect(ownerBalance2).to.equal(balance)
+      ownerBalance = await this.depositToken.balanceOf(this.owner.address)
+      balance = BigNumber.from((this.alice_deposit * this.fee).toString())
+      expect(ownerBalance).to.equal(balance)
     })
 
-    it("----------------", async function () {
-      await DAO2.approve(DAO1Stake.address, 1000000)
-      await DAO1Stake.addContractBalance(1000000)
+    it("getting a reward for not the first deposits // bad work?", async function () {
+      await this.rewardToken.approve(this.pool.address, 1000000)
+      await this.pool.addContractBalance(1000000)
 
-      total_reward = await DAO1Stake.contractBalance()
-      console.log("total number of reward tokens", total_reward.toString())
+      total_reward = await this.pool.contractBalance()
       //expect(balance2).to.equal(100000);
 
-      balance1 = await DAO2.balanceOf(addr1.address)
-      balance4 = await DAO1Stake.contractBalance()
-      //await DAO1Stake.connect(addr1).deposit(amount,{from:addr1.address});
-      await DAO1Stake.connect(addr1).claim()
-      balance2 = await DAO2.balanceOf(addr1.address)
-      balance3 = await DAO1Stake.contractBalance()
+      balance1 = await this.rewardToken.balanceOf(this.alice.address)
+      balance4 = await this.pool.contractBalance()
+      await this.pool.connect(this.alice).deposit(this.alice_deposit,{from:this.alice.address});
+      //await this.pool.connect(this.alice).claim()
+      balance2 = await this.rewardToken.balanceOf(this.alice.address)
+      balance3 = await this.pool.contractBalance()
+
+      console.log("total number of reward tokens", total_reward.toString())
       console.log("initial balance of reward tokens", balance1.toString())
       console.log("the balance of reward tokens after receiving the reward", balance2.toString())
     })
 
     it("can't deposit 0 token", async function () {
-      await expect(DAO1Stake.deposit(0)).to.be.revertedWith("Cannot deposit 0 Tokens")
+      await expect(this.pool.deposit(0)).to.be.revertedWith("Cannot deposit 0 Tokens")
     })
     //it("can't deposit more than the balance", async function() {
-    //  await expect(DAO1Stake.deposit(ownerBalance,period1)).to.be.revertedWith("Insufficient Token Allowance");
+    //  await expect(this.pool.deposit(ownerBalance,period1)).to.be.revertedWith("Insufficient Token Allowance");
     //});
     // !!!! TODO: outputs the ERC20 error code of the contract, then whether it is necessary to check this operation in the contract using require?
-    it("can't make a deposit after 60 days of contract creation", async function () {
-      await network.provider.send("evm_increaseTime", [60 * 24 * 60 * 60 + 1])
-      await expect(DAO1Stake.deposit(amount)).to.be.revertedWith("Deposits are closed now!")
+    it("not possible to make a deposit after the specified days from the date of creation of the contract", async function () {
+      disburseDuration = await this.pool.disburseDuration()
+      LOCKUP_TIME = await this.pool.LOCKUP_TIME()
+      work_contract_time = disburseDuration - LOCKUP_TIME
+      await network.provider.send("evm_increaseTime", [work_contract_time + 1])
+      await expect(this.pool.deposit(this.alice_deposit)).to.be.revertedWith("Deposits are closed now!")
     })
   })
 
@@ -143,7 +160,7 @@ describe("DAO1Stake", function () {
   // describe("CountPositions mapping", function() {
   //   it("initial zero counter", async function() {
   //     count=BigNumber.from("0");
-  //     expect(await DAO1Stake.CountPositions(addr1.address)).to.equal(count);
+  //     expect(await DAO1Stake.CountPositions(this.alice.address)).to.equal(count);
   //   });
   //   it("increasing the counter when making a deposit", async function() {
   //     count=BigNumber.from("3");
