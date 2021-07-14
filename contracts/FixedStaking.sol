@@ -37,15 +37,19 @@ contract FixedStaking is Ownable {
     // If the user withdraws before stake expiration, he pays `earlyUnstakeFee`
     uint256 public earlyUnstakeFee;
 
+    // early withdrawal fees are accounted separately
+    // and can be withdrawn by the owner using withdrawCollectedFees(address _to, uint256 amount)
+    uint256 public collectedFees;
+
     // Sum of rewards that staker will receive for his stake
     // nominated in basis points (1/10000) of staked amount
     uint256 public rewardRate;
 
     event Stake(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 startTime, uint256 endTime);
 
-    event Unstake(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 startTime, uint256 endTime);
+    event Unstake(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 startTime, uint256 endTime, bool early);
 
-    event EmergencyWithdraw(address indexed user, uint256 indexed stakeId, uint256 amount);
+    event Harvest(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 harvestTime);
 
     constructor(
         IERC20 _token,
@@ -85,7 +89,11 @@ contract FixedStaking is Ownable {
         totalYield = _stake.totalYield;
         harvestedYield = _stake.harvestedYield;
         lastHarvestTime = _stake.lastHarvestTime;
-        harvestableYield = 0; // todo: dynamically calculate in DAO-42
+        if (_now() > endTime) {
+            harvestableYield = totalYield.sub(harvestedYield);
+        } else {
+            harvestableYield = totalYield.mul(_now().sub(lastHarvestTime)).div(endTime.sub(startTime));
+        }
     }
 
     function start() public onlyOwner {
@@ -99,40 +107,62 @@ contract FixedStaking is Ownable {
     // Deposit user's stake
     function stake(uint256 _amount) public {
         // todo: add DAO1.transferFrom DAO-44
+        uint256 startTime = _now();
+        uint256 endTime = _now().add(stakeDurationDays.mul(1 days));
         stakes[msg.sender].push(
             StakeInfo({
                 active: true,
                 stakedAmount: _amount,
-                startTime: _now(),
-                endTime: _now().add(stakeDurationDays.mul(1 days)),
-                totalYield: 0, // todo DAO-41
-                harvestedYield: 0, // todo will be mutated by harvest() DAO-42
-                lastHarvestTime: _now() //todo will be mutated by harvest() DAO-42
+                startTime: startTime,
+                endTime: endTime,
+                totalYield: _amount.mul(rewardRate).div(10000),
+                harvestedYield: 0,
+                lastHarvestTime: startTime
             })
         );
-        emit Stake(msg.sender, 0, _amount, 0, 0);
+        totalStaked = totalStaked.add(_amount);
+        emit Stake(msg.sender, getStakesLength(msg.sender), _amount, startTime, endTime);
     }
 
     // Withdraw user's stake
     function unstake(uint256 _stakeId) public {
-        // require the stake is active DAO-43
-        // require the stake is expired DAO-43
-        // if stake is not expired: early unstake and pay fines DAO-45
-        // todo: add DAO1.transfer DAO-44
-        stakes[msg.sender][_stakeId].active = false;
-        emit Unstake(msg.sender, _stakeId, 0, 0, 0);
+        (bool active, uint256 stakedAmount, uint256 startTime, uint256 endTime, , uint256 harvestedYield, , uint256 harvestableYield) = getStake(
+            msg.sender,
+            _stakeId
+        );
+        bool early;
+        require(active, "Stake is not active!");
+        if (_now() > endTime) {
+            // todo: add DAO1.transfer amount DAO-44
+            stakes[msg.sender][_stakeId].active = false;
+            totalStaked = totalStaked.sub(stakedAmount);
+            early = false;
+        } else {
+            // todo: add DAO1.transfer amount-amount*earlyUnstakeFee DAO-44
+            stakes[msg.sender][_stakeId].active = false;
+            stakes[msg.sender][_stakeId].endTime = _now();
+            stakes[msg.sender][_stakeId].totalYield = harvestedYield.add(harvestableYield);
+            totalStaked = totalStaked.sub(stakedAmount);
+            collectedFees = collectedFees.add(stakedAmount.mul(earlyUnstakeFee).div(10000));
+            early = true;
+        }
+
+        emit Unstake(msg.sender, _stakeId, stakedAmount, startTime, endTime, early);
     }
 
     function harvest(uint256 _stakeId) public {
-        // todo: DAO-42
+        (, , , , , uint256 harvestedYield, , uint256 harvestableYield) = getStake(msg.sender, _stakeId);
+        require(harvestableYield != 0, "harvestableYield is zero");
         // todo: add DAO1.transfer DAO-44
-        // mutate stake
-        // emit event
+        stakes[msg.sender][_stakeId].harvestedYield = harvestedYield.add(harvestableYield);
+        stakes[msg.sender][_stakeId].lastHarvestTime = _now();
+        emit Harvest(msg.sender, _stakeId, harvestableYield, _now());
     }
 
-    // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _stakeId) public {
-        emit EmergencyWithdraw(msg.sender, _stakeId, 0);
+    function withdrawCollectedFees(address _to, uint256 amount) public onlyOwner {
+        require(collectedFees >= amount, "Amount is more than there are collectedFees!");
+        // todo: add DAO1.transfer DAO-44
+        collectedFees = collectedFees.sub(amount);
     }
 
     // Returns block.timestamp, overridable for test purposes.
