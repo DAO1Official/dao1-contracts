@@ -20,3 +20,12 @@ Ethereum mainnet:
  - DAO1FarmingUniswap address ["0xA193b7d01E0e03b8F26214A54C7a515d9B4c8D43"](https://etherscan.io/address/0xA193b7d01E0e03b8F26214A54C7a515d9B4c8D43)
  - YfDaiFarmingUniswap address ["0xCBc033a017B1F6e4b359D2ABeD0C0e9623bb7D5A"](https://etherscan.io/address/0xCBc033a017B1F6e4b359D2ABeD0C0e9623bb7D5A)
  
+## Deployments commands for test nets
+
+```
+npx hardhat --network rinkeby deploy
+npx hardhat --network rinkeby etherscan-verify --solc-input --api-key <Etherscan_API_Key>
+
+npx hardhat --network mumbai deploy
+npx hardhat --network mumbai etherscan-verify --solc-input --api-key <Etherscan_API_Key>
+```
