@@ -1,5 +1,10 @@
-# dao1_contracts
+# Smart contracts for DAO1
+
 DAO1 Ethereum contracts
+
+![Solidity](https://img.shields.io/badge/solidity-v0.8-green)
+![License](https://img.shields.io/github/license/OnGridSystems/dao1_contracts)
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FOnGridSystems%2Fdao1_contracts%2Fbadge%3Fref%3Dmaster&style=flat)](https://actions-badge.atrox.dev/OnGridSystems/dao1_contracts/goto?ref=master)
 
 ## Deployments
 
