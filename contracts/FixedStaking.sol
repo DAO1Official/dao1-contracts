@@ -60,6 +60,10 @@ contract FixedStaking is Ownable {
     // The reward tokens get allocated at the moment of stake.
     uint256 public allocatedTokens;
 
+    // unallocated (excess) tokens can be withdrawn by the contract owner not earlier than 18 months
+    uint256 public constant WITHDRAWAL_LOCKUP_DURATION = 30 days * 18;
+    uint256 public withdrawalUnlockTime;
+
     event Stake(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 startTime, uint256 endTime);
 
     event Unstake(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 startTime, uint256 endTime, bool early);
@@ -83,6 +87,7 @@ contract FixedStaking is Ownable {
         stakeDurationDays = _stakeDurationDays;
         yieldRate = _yieldRate;
         earlyUnstakeFee = _earlyUnstakeFee;
+        withdrawalUnlockTime = _now().add(WITHDRAWAL_LOCKUP_DURATION);
     }
 
     /**
@@ -93,6 +98,7 @@ contract FixedStaking is Ownable {
      */
     function withdrawUnallocatedTokens(address _to, uint256 _amount) external onlyOwner {
         require(unallocatedTokens() >= _amount, "Not enough unallocatedTokens");
+        require(_now() >= withdrawalUnlockTime, "Can't withdraw until withdrawalUnlockTime");
         token.safeTransfer(_to, _amount);
     }
 
