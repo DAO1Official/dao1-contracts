@@ -1,11 +1,10 @@
 const contractName = "FixedStaking60Days"
-const DAO1Address = process.env.DAO1Address
 
 module.exports = async function ({ getNamedAccounts, deployments }) {
   const { deploy, execute } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const token = DAO1Address || (await ethers.getContract("DAO1")).address
+  const token = (await ethers.getContract("DAO1")).address
   const stakeDurationDays = 60
   const rewardRate = 450
   const earlyUnstakeFee = 450
@@ -31,6 +30,4 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 }
 
 module.exports.tags = [contractName]
-if (!DAO1Address) {
-  module.exports.dependencies = ["DAO1Token"]
-}
+module.exports.dependencies = ["DAO1Token"]
