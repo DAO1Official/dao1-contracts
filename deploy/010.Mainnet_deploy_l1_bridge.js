@@ -4,7 +4,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 
   const DAO1 = await ethers.getContract("DAO1")
   const l1token = DAO1.address
-  const l2token = "0xdeadbeef00000000000000000000000000000000"
+  const l2token = "0xff6D784D5938CB3980Dce79BbAcEc53987D527d8" // taken from deployments/bsc
 
   await deploy("L1Bridge", {
     from: deployer,
