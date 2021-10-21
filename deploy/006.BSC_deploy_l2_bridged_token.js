@@ -13,4 +13,4 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 
 }
 
-module.exports.tags = ["L2BridgedToken"]
+module.exports.tags = ["L2BridgedTokenBSC"]
