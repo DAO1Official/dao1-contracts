@@ -1,9 +1,8 @@
 module.exports = async function ({ getNamedAccounts, deployments }) {
   const { deploy, execute } = deployments
   const { deployer } = await getNamedAccounts()
-  const DAO1 = await ethers.getContract("DAO1")
   const L2BridgedToken = await ethers.getContract("L2BridgedToken")
-  const l1token = DAO1.address
+  const l1token = "0xCE3f6f6672616c39D8B6858F8DAC9902eCa42C84"
   const l2token = L2BridgedToken.address
 
   await deploy("L2Bridge", {
@@ -34,4 +33,4 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 }
 
 module.exports.tags = ["L2Bridge"]
-module.exports.dependencies = ["L2BridgedToken","DAO1Token"]
+module.exports.dependencies = ["L2BridgedToken"]
